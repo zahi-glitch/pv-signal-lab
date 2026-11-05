@@ -16,7 +16,9 @@ Model (one report = one patient):
     slightly distorts the marginals, as in real databases.
 
 Ground truth: ``truth`` has kind "true" (injected effect) or "confounded" (no effect,
-shared dependence on age). Every other pair is a plain null.
+shared dependence on age). Every other pair is a plain null. For true signals the column
+``affects`` says who is affected: "both" sexes or only "F" or "M" (effect modification,
+switched on with ``n_sex_specific``; off by default so earlier results are unchanged).
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ class SimConfig:
     n_age_events: int = 6
     n_elderly_drugs: int = 6
     age_beta: float = 1.0
+    n_sex_specific: int = 0  # how many true signals act in one sex only (effect modification); 0 = off
     seed: int = 0
 
 
@@ -81,13 +84,18 @@ def simulate(config: SimConfig | None = None) -> SimData:
     while len(pairs) < cfg.n_true_signals:
         pairs.add((int(rng.choice(clean_drugs)), int(rng.choice(clean_events))))
     true_rows = []
-    for d, e in sorted(pairs):
+    n_ss = min(cfg.n_sex_specific, cfg.n_true_signals)
+    for k, (d, e) in enumerate(sorted(pairs)):
         rr = float(rng.uniform(*cfg.rr_range))
-        P[present[:, d], e] *= rr
-        true_rows.append((d, e, "true", rr))
+        affects, mask = "both", present[:, d]
+        if k < n_ss:  # effect modification: the relative risk applies to one sex only
+            affects = "F" if rng.random() < 0.5 else "M"
+            mask = mask & (sex == affects)
+        P[mask, e] *= rr
+        true_rows.append((d, e, "true", rr, affects))
     for d in elderly:
         for e in age_events:
-            true_rows.append((int(d), int(e), "confounded", 1.0))
+            true_rows.append((int(d), int(e), "confounded", 1.0, "-"))
 
     P = np.clip(P, 0, 0.9)
     Y = rng.random((n, ne)) < P
@@ -102,8 +110,8 @@ def simulate(config: SimConfig | None = None) -> SimData:
     )
     drugs = pd.DataFrame({"report_id": ri, "drug": dn[di]})
     events = pd.DataFrame({"report_id": rj, "event": en[ej]})
-    truth = pd.DataFrame(true_rows, columns=["drug_i", "event_i", "kind", "rr"])
+    truth = pd.DataFrame(true_rows, columns=["drug_i", "event_i", "kind", "rr", "affects"])
     truth["drug"] = dn[truth["drug_i"].to_numpy()]
     truth["event"] = en[truth["event_i"].to_numpy()]
-    truth = truth[["drug", "event", "kind", "rr"]]
+    truth = truth[["drug", "event", "kind", "rr", "affects"]]
     return SimData(reports, drugs, events, truth, cfg)

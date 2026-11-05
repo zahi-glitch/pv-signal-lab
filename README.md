@@ -68,12 +68,27 @@ Full table: [`results/imputation.md`](results/imputation.md).
 
 The gate never answers wrongly, but it is conservative: paraphrases that share no words with the label ("injected" vs "administered subcutaneously") are refused. A dense-embedding retriever is the next step. This is a toy set of 24 questions, so read it as a demonstration of the evaluation method, not as a benchmark. The sweep over thresholds is in [`results/rag_sweep.csv`](results/rag_sweep.csv).
 
+### 4. Sex as an effect modifier
+
+Age is a confounder: it distorts the signal and should be adjusted away. Sex can be different: a drug may raise an event's risk in women and not in men. Then there is no single "true" odds ratio to adjust towards, and the useful output is the signal *per sex* plus a test of whether the sexes differ. Here 4 of 8 true signals act in one sex only (relative risk 2 to 5), age confounding is off, 20 simulated databases per size. "By sex" = one table per sex with one joint Benjamini-Hochberg correction; heterogeneity = Wald z-test on the difference of the two ln ROR (p < 0.05). This is a simple Wald test, not a Breslow-Day test.
+
+| Reports | One-sex signals found: pooled | by sex | Correct sex named | Heterogeneity power | False heterogeneity | False alarms (null): pooled | by sex |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 20,000 | 62% | 70% | 70% | 91% | 6% | 0.10% | 0.20% |
+| 40,000 | 80% | 86% | 86% | 88% | 5% | 0.08% | 0.13% |
+| 80,000 | 91% | 98% | 98% | 99% | 4% | 0.04% | 0.10% |
+
+- A one-sex signal is diluted in the pooled table (about half of the exposed reports are unaffected), so pooled analysis misses more of them, most clearly in smaller databases.
+- When the by-sex analysis flags a one-sex signal, it names the right sex in every case here; the test then detects the sex difference in about 9 of 10 cases. On both-sex signals it fires about as often as the 5% level promises.
+- Cost: twice as many tests, so false alarms among null pairs roughly double (still about 0.1%).
+- Only 4 + 4 true signals per database, pooled over 20 databases: percentages are noisy. Details in [`results/sex.md`](results/sex.md).
+
 ## How it works
 
 | Module | What it does |
 |---|---|
-| `simulate.py` | Synthetic reports: age, sex, drugs, events; injected signals; age confounding; ground-truth table |
-| `signals.py` | 2x2 counts, PRR / ROR with confidence limits, Evans rule, one-sided Wald test with Benjamini-Hochberg FDR, Mantel-Haenszel age adjustment, scoring against truth |
+| `simulate.py` | Synthetic reports: age, sex, drugs, events; injected signals (optionally one-sex only); age confounding; ground-truth table |
+| `signals.py` | 2x2 counts, PRR / ROR with confidence limits, Evans rule, one-sided Wald test with Benjamini-Hochberg FDR, Mantel-Haenszel age adjustment, per-stratum tables (sex), heterogeneity test, scoring against truth |
 | `impute.py` | MCAR / MAR / MNAR missing-age mechanisms; mean, hot-deck and stochastic regression imputation |
 | `db.py` | SQLite schema and the same 2x2 counts in plain SQL (tested equal to the NumPy path) |
 | `rag.py` | Hybrid retrieval, abstention gate, cited extractive answer, optional LLM hook, evaluation |
@@ -87,15 +102,16 @@ The language model is optional: `answer(question, retriever, llm=callable)` buil
 git clone <this repo> && cd pv-signal-lab
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[plots,test]"
-pytest                                      # 17 tests
+pytest                                      # 22 tests
 python experiments/run_detection.py         # about 10 s
 python experiments/run_imputation.py        # about 10 s
 python experiments/run_rag_eval.py
+python experiments/run_sex.py               # about 1 min
 ```
 
 ## Limits (read before using on real data)
 
-- **Synthetic data.** Real reporting has duplicates, free-text drug names, reporting stimulated by publicity, co-medication and many more confounders than age. The simulation has one.
+- **Synthetic data.** Real reporting has duplicates, free-text drug names, reporting stimulated by publicity, co-medication and many more confounders than age. The simulation has age, plus sex as an effect modifier in experiment 4.
 - **Reports are not incidence.** Without an exposure denominator, a flagged pair is a hypothesis for clinical review, not evidence of causation.
 - **Reports with no event are dropped** in the simulation, as in real databases, which slightly distorts the marginals.
 - **`openfda.py` is untested against the live API.** The parser is unit-tested on a hand-written example of the response format; the network was not reachable when this was built. Check the openFDA terms and rate limits before pulling data.
@@ -105,6 +121,8 @@ python experiments/run_rag_eval.py
 
 - [ ] Run the pipeline on real openFDA reports for one drug class and review the top flags against the labels
 - [ ] Add a Bayesian shrinkage rule (empirical-Bayes gamma-Poisson shrinker) to the comparison
-- [ ] Add more confounders (sex, co-medication) and a propensity-style adjustment
+- [x] Sex as an effect modifier (experiment 4)
+- [ ] Add co-medication as a confounder and a propensity-style adjustment
+- [ ] Projection: forecast report counts per drug-event pair and flag departures
 - [ ] Dense-embedding retriever and a larger, hand-labelled question set from real labels
 - [ ] Deploy the assistant as a small service on a cloud platform (Azure) and document the setup

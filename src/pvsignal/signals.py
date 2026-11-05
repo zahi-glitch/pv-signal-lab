@@ -164,6 +164,60 @@ def mh_adjusted(
     return out
 
 
+def stratum_tables(
+    drugs: pd.DataFrame, events: pd.DataFrame, strata: np.ndarray, names: dict[int, str], n_reports: int
+) -> dict[str, pd.DataFrame]:
+    """One disproportionality table per stratum (for example per sex): {name: table}.
+
+    ``strata`` is an integer code per report; ``names`` maps the codes to labels.
+    Each table has the same (drug, event) rows, so tables can be merged or compared.
+    """
+    D, E, dn, en = incidence(drugs, events, n_reports)
+    nd, ne = len(dn), len(en)
+    out = {}
+    for code, name in names.items():
+        idx = np.nonzero(strata == code)[0]
+        a, b, c, d = _cells(D[idx], E[idx])
+        tab = pd.DataFrame(
+            {
+                "drug": np.repeat(dn, ne),
+                "event": np.tile(en, nd),
+                "a": a.ravel(),
+                "b": b.ravel(),
+                "c": c.ravel(),
+                "d": d.ravel(),
+            }
+        )
+        out[name] = disproportionality(tab)
+    return out
+
+
+def flag_by_group(tables: dict[str, pd.DataFrame], q: float = 0.05, min_a: int = 3) -> pd.DataFrame:
+    """Flag signals separately in each group, with ONE Benjamini-Hochberg correction over all groups' tests.
+
+    Returns one row per (drug, event) with a boolean column per group.
+    """
+    stacked = pd.concat([t.assign(group=g) for g, t in tables.items()], ignore_index=True)
+    stacked["flag"] = flag_fdr(stacked, q, min_a).to_numpy()
+    wide = stacked.pivot(index=["drug", "event"], columns="group", values="flag").reset_index()
+    return wide.rename_axis(columns=None)
+
+
+def heterogeneity(t1: pd.DataFrame, t2: pd.DataFrame) -> pd.DataFrame:
+    """Wald test that the log odds ratio is the same in two strata (two-sided).
+
+    z = (ln ROR_1 - ln ROR_2) / sqrt(se_1^2 + se_2^2). Pairs with very small counts in a stratum
+    get a large standard error, so the test has little power there.
+    """
+    m = t1[["drug", "event", "ln_ror", "se"]].merge(
+        t2[["drug", "event", "ln_ror", "se"]], on=["drug", "event"], suffixes=("_1", "_2")
+    )
+    m["diff"] = m["ln_ror_1"] - m["ln_ror_2"]
+    m["z_het"] = m["diff"] / np.sqrt(m["se_1"] ** 2 + m["se_2"] ** 2)
+    m["p_het"] = 2 * stats.norm.sf(np.abs(m["z_het"]))
+    return m[["drug", "event", "diff", "z_het", "p_het"]]
+
+
 def evaluate(t: pd.DataFrame, flagged: pd.Series, truth: pd.DataFrame) -> dict:
     """Compare flagged pairs with the simulation truth.
 
