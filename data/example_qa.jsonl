@@ -1,0 +1,24 @@
+{"q": "What is Veltrazine used to treat?", "gold": "vel_ind"}
+{"q": "What are the common side effects of Veltrazine?", "gold": "vel_ae"}
+{"q": "Do I need a tuberculosis test before starting Veltrazine?", "gold": "vel_warn"}
+{"q": "How often is Veltrazine injected?", "gold": "vel_dose"}
+{"q": "What is Norimex indicated for?", "gold": "nor_ind"}
+{"q": "Which kidney function level rules out Norimex?", "gold": "nor_contra"}
+{"q": "What is the starting dose of Norimex?", "gold": "nor_dose"}
+{"q": "Can Norimex cause lactic acidosis?", "gold": "nor_ae"}
+{"q": "What is Cardiolan used for?", "gold": "car_ind"}
+{"q": "Does Cardiolan raise the risk of bleeding?", "gold": "car_warn"}
+{"q": "What is the Cardiolan dose with reduced creatinine clearance?", "gold": "car_dose"}
+{"q": "Can Somnirol cause sleep-walking?", "gold": "som_warn"}
+{"q": "Is Somnirol safe in pregnancy?", "gold": "som_preg"}
+{"q": "What is Somnirol prescribed for?", "gold": "som_ind"}
+{"q": "What is the dose of Zentabril for children?", "gold": null}
+{"q": "Does Veltrazine interact with grapefruit juice?", "gold": null}
+{"q": "Is Cardiolan approved for children under two years?", "gold": null}
+{"q": "What is the manufacturer phone number for Norimex?", "gold": null}
+{"q": "Can Somnirol be taken with alcohol?", "gold": null}
+{"q": "What is the half-life of Veltrazine?", "gold": null}
+{"q": "Who won the football match yesterday?", "gold": null}
+{"q": "What are the side effects of Lumavex?", "gold": null}
+{"q": "Does Norimex cause hair loss?", "gold": null}
+{"q": "What is the shelf life of Cardiolan tablets?", "gold": null}
